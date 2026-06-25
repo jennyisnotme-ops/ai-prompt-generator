@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 提示詞生成器</title>
+<style>
+:root {
+  --bg:#0e0e10;--surface:#18181c;--surface2:#22222a;--border:#2e2e38;
+  --border2:#3d3d4d;--text:#e8e8f0;--muted:#c0c0d8;--hint:#9494b4;
+  --accent:#7c6af5;--accent2:#a594f9;--gold:#c9a84c;--success:#3ecf8e;
+  --tag-bg:#1e1e2a;--tag-border:#3a3a50;--tooltip-bg:#2a2a38;--danger:#e57373;
+  --openai:#10a37f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Helvetica Neue',Arial,'PingFang TC','Microsoft JhengHei',sans-serif;font-size:14px;line-height:1.6;min-height:100vh}
+header{border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--gold));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+header h1{font-size:15px;font-weight:600}
+header p{font-size:11px;color:var(--muted)}
+.header-right{display:flex;align-items:center;gap:10px}
+.key-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--hint)}
+.key-dot{width:7px;height:7px;border-radius:50%;background:var(--border2);flex-shrink:0;transition:background .2s}
+.key-dot.on-claude{background:var(--accent)}
+.key-dot.on-gpt{background:var(--openai)}
+.key-dot.on-both{background:var(--gold)}
+.settings-btn{display:flex;align-items:center;gap:7px;padding:7px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--muted);cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
+.settings-btn:hover{border-color:var(--accent);color:var(--accent2)}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+.modal-title{font-size:15px;font-weight:600}
+.modal-close{width:28px;height:28px;border:none;background:var(--surface2);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:background .12s}
+.modal-close:hover{background:var(--border2);color:var(--text)}
+.modal-body{padding:20px 24px 24px}
+.key-block{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px}
+.key-block-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.key-brand{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.key-brand.claude{background:rgba(124,106,245,.15);color:var(--accent2)}
+.key-brand.gpt{background:rgba(16,163,127,.15);color:var(--openai)}
+.key-block-title{font-size:13px;font-weight:600}
+.key-block-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.key-input-row{display:flex;gap:8px;margin-bottom:10px}
+.key-input-row input{flex:1;font-size:12px;padding:7px 10px;font-family:'Menlo','Monaco',monospace}
+.key-save-btn{padding:7px 14px;border:1px solid var(--border2);border-radius:7px;background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap;transition:all .12s}
+.key-save-btn:hover{border-color:var(--accent);color:var(--accent2)}
+.key-guide{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.key-guide-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.key-step{display:flex;gap:10px;margin-bottom:6px;font-size:12px;color:var(--text);line-height:1.6}
+.key-step:last-child{margin-bottom:0}
+.step-num{width:18px;height:18px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--muted);flex-shrink:0;margin-top:1px}
+.key-link{color:var(--accent2);text-decoration:none;border-bottom:1px solid rgba(165,148,249,.3)}
+.key-link:hover{border-color:var(--accent2)}
+.key-note{font-size:10px;color:var(--hint);margin-top:8px;line-height:1.6;padding-top:8px;border-top:1px solid var(--border)}
+.modal-divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.key-saved-badge{display:none;font-size:10px;color:var(--success);margin-top:5px}
+.key-saved-badge.show{display:block}
+.ai-model-note{font-size:11px;color:var(--hint);margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);line-height:1.6}
+
+.container{max-width:940px;margin:0 auto;padding:28px 24px 80px}
+.tabs{display:flex;gap:6px;margin-bottom:24px}
+.tab{padding:8px 20px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}
+.tab:hover{background:var(--surface);color:var(--text)}
+.tab.active{background:var(--surface2);color:var(--text);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.panel{display:none}.panel.active{display:block}
+
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:14px}
+.section-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:14px}
+.section-icon{font-size:14px;margin-top:1px}
+.section-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.section-desc{font-size:11px;color:var(--hint);margin-top:2px}
+
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field-label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);font-weight:500}
+
+/* Tooltip */
+.tip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:var(--surface2);border:1px solid var(--border2);border-radius:50%;font-size:9px;color:var(--hint);cursor:help;position:relative;flex-shrink:0}
+.tip-icon .tip-box{display:none;position:absolute;left:20px;top:-4px;z-index:999;background:var(--tooltip-bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;width:240px;font-size:11px;color:var(--text);line-height:1.6;pointer-events:none;white-space:normal}
+.tip-icon:hover .tip-box{display:block}
+.tip-box strong{color:var(--accent2);font-weight:600;display:block;margin-bottom:4px}
+.tip-box .eg{color:var(--muted);margin-top:4px;font-size:10px}
+
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:13px;padding:7px 10px;width:100%;transition:border .12s;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(124,106,245,.12)}
+input::placeholder,textarea::placeholder{color:var(--hint)}
+textarea{resize:vertical;min-height:56px;line-height:1.6}
+select option{background:var(--surface2)}
+
+/* Preset chips */
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{font-size:11px;padding:3px 10px;border:1px solid var(--tag-border);border-radius:20px;background:var(--tag-bg);color:var(--muted);cursor:pointer;transition:all .12s}
+.chip:hover{border-color:var(--accent);color:var(--accent2)}
+.chip.active{border-color:var(--accent);background:rgba(124,106,245,.12);color:var(--accent2)}
+
+/* Shot blocks */
+.shot-block{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.shot-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.shot-num{font-size:11px;font-weight:600;color:var(--accent2);letter-spacing:.06em;text-transform:uppercase}
+.remove-btn{font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:5px;background:transparent;color:var(--hint);cursor:pointer}
+.remove-btn:hover{color:var(--danger);border-color:var(--danger)}
+.add-shot-btn{width:100%;padding:8px;margin-top:4px;border:1px dashed var(--border2);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s}
+.add-shot-btn:hover{border-color:var(--accent);color:var(--accent2)}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.legend-item{position:relative;display:flex;align-items:center;gap:5px;background:var(--tag-bg);border:1px solid var(--tag-border);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s;user-select:none}
+.legend-item:hover{border-color:var(--accent);color:var(--accent2)}
+.legend-item.active{background:rgba(124,106,245,.18);border-color:var(--accent);color:var(--accent2)}
+.legend-item.active .legend-dot{background:var(--accent2)}
+.legend-item .tip-box{display:none;position:absolute;bottom:26px;left:0;z-index:999;background:var(--tooltip-bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;width:220px;font-size:11px;color:var(--text);line-height:1.6;pointer-events:none}
+.legend-item:hover .tip-box{display:block}
+.legend-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* Buttons */
+.btn-row{display:flex;gap:10px;margin-top:8px}
+.gen-btn{flex:1;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--accent),#5b4dcc);color:#fff;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.02em;transition:opacity .15s}
+.gen-btn:hover{opacity:.88}
+.ai-btn{flex:1;padding:12px;border-radius:9px;border:1px solid var(--gold);background:transparent;color:var(--gold);font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+.ai-btn:hover{background:rgba(201,168,76,.08)}
+.ai-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Output */
+.output-box{display:none;margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.output-box.show{display:block}
+.output-head{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--border)}
+.output-label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.output-tabs{display:flex;gap:4px}
+.out-tab{font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:5px;background:transparent;color:var(--muted);cursor:pointer}
+.out-tab.active{background:var(--surface2);color:var(--text);border-color:var(--accent2)}
+.copy-btn{font-size:11px;padding:4px 12px;border:1px solid var(--border2);border-radius:5px;background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .12s}
+.copy-btn:hover{border-color:var(--success);color:var(--success)}
+.output-pane{display:none}.output-pane.active{display:block}
+.output-text{padding:16px;font-size:13px;line-height:1.9;white-space:pre-wrap;word-break:break-word;color:var(--text);max-height:500px;overflow-y:auto}
+.output-text.narrative{font-family:inherit;white-space:pre-wrap}
+.output-text.raw{font-family:'Menlo','Monaco','Courier New',monospace}
+.loading-row{display:flex;align-items:center;gap:10px;padding:20px 16px;color:var(--muted);font-size:13px}
+.spinner{width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Template section */
+.template-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-bottom:8px}
+.template-card{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:7px}
+.template-card:hover{border-color:var(--accent);background:rgba(124,106,245,.06)}
+.template-card .t-icon{font-size:15px;flex-shrink:0}
+.template-card .t-name{font-size:11px;font-weight:500;color:var(--text);line-height:1.3}
+.template-card .t-desc{font-size:10px;color:var(--hint);margin-top:1px}
+
+.notice{font-size:11px;color:var(--hint);padding:10px 0 0;line-height:1.6}
+.notice a{color:var(--accent2);text-decoration:none}
+
+/* Upload area */
+.upload-area{border:2px dashed var(--border2);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all .15s;background:var(--surface2);position:relative}
+.upload-area:hover{border-color:var(--accent);background:rgba(124,106,245,.06)}
+.upload-area.has-file{border-color:var(--success);border-style:solid;background:rgba(62,207,142,.04)}
+.upload-placeholder-inner{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0}
+.upload-plus{font-size:28px;color:var(--border2);line-height:1}
+.upload-area:hover .upload-plus{color:var(--accent)}
+.upload-preview-row{display:flex;align-items:center;gap:12px;text-align:left}
+.upload-thumb{width:72px;height:72px;border-radius:8px;object-fit:cover;border:1px solid var(--border2);flex-shrink:0}
+.upload-meta{flex:1;min-width:0}
+.upload-filename{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upload-hint-ok{font-size:11px;color:var(--success);margin-top:3px}
+.upload-clear-btn{font-size:11px;padding:4px 10px;border:1px solid var(--border2);border-radius:5px;background:transparent;color:var(--hint);cursor:pointer;flex-shrink:0;white-space:nowrap}
+.upload-clear-btn:hover{color:var(--danger);border-color:var(--danger)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">✦</div>
+    <div>
+      <h1>AI 提示詞生成器</h1>
+      <p>圖片 · 影片 · AI 敘事潤色</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="key-status">
+      <div class="key-dot" id="key-dot"></div>
+      <span id="key-status-text">未設定 API Key</span>
+    </div>
+    <button class="settings-btn" onclick="openModal()">⚙ 設定 API Key</button>
+  </div>
+</header>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <span class="modal-title">API Key 設定</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Claude -->
+      <div class="key-block">
+        <div class="key-block-head">
+          <div class="key-brand claude">C</div>
+          <div>
+            <div class="key-block-title">Claude（Anthropic）</div>
+            <div class="key-block-sub">用於「✦ AI 敘事潤色」功能</div>
+          </div>
+        </div>
+        <div class="key-input-row">
+          <input type="password" id="api-key" placeholder="sk-ant-api03-..." autocomplete="off" />
+          <button class="key-save-btn" onclick="saveKey('claude')">儲存</button>
+        </div>
+        <div class="key-saved-badge" id="claude-saved">✓ 已儲存（本次瀏覽器工作階段有效）</div>
+        <div class="key-guide">
+          <div class="key-guide-title">如何取得 Claude API Key</div>
+          <div class="key-step"><div class="step-num">1</div><div>前往 <a class="key-link" href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>，登入或註冊帳號</div></div>
+          <div class="key-step"><div class="step-num">2</div><div>點選左側選單 <strong>API Keys</strong>，再點 <strong>Create Key</strong></div></div>
+          <div class="key-step"><div class="step-num">3</div><div>複製生成的 Key（格式：<code style="font-size:10px;color:var(--accent2)">sk-ant-...</code>），貼到上方欄位</div></div>
+          <div class="key-step"><div class="step-num">4</div><div>首次使用需至 <strong>Billing</strong> 頁面加值信用額度（最低 $5 美元），之後按用量計費</div></div>
+          <div class="key-note">💡 Key 只存在你的瀏覽器記憶體，關閉分頁就消失，不會上傳到任何伺服器。每次潤色約消耗 $0.003–0.01 美元。</div>
+        </div>
+      </div>
+
+      <hr class="modal-divider">
+
+      <!-- ChatGPT -->
+      <div class="key-block">
+        <div class="key-block-head">
+          <div class="key-brand gpt">G</div>
+          <div>
+            <div class="key-block-title">ChatGPT（OpenAI）</div>
+            <div class="key-block-sub">填入後「✦ AI 敘事潤色」優先使用 GPT-4o</div>
+          </div>
+        </div>
+        <div class="key-input-row">
+          <input type="password" id="api-key-gpt" placeholder="sk-proj-..." autocomplete="off" />
+          <button class="key-save-btn" onclick="saveKey('gpt')">儲存</button>
+        </div>
+        <div class="key-saved-badge" id="gpt-saved">✓ 已儲存（本次瀏覽器工作階段有效）</div>
+        <div class="key-guide">
+          <div class="key-guide-title">如何取得 OpenAI API Key</div>
+          <div class="key-step"><div class="step-num">1</div><div>前往 <a class="key-link" href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>，登入帳號</div></div>
+          <div class="key-step"><div class="step-num">2</div><div>點 <strong>Create new secret key</strong>，填入名稱後建立</div></div>
+          <div class="key-step"><div class="step-num">3</div><div>複製 Key（格式：<code style="font-size:10px;color:var(--openai)">sk-proj-...</code>），貼到上方欄位。<strong>此 Key 只顯示一次</strong>，請立刻複製</div></div>
+          <div class="key-step"><div class="step-num">4</div><div>至 <strong>Billing → Add payment method</strong> 綁定信用卡，首次可加值 $5 美元</div></div>
+          <div class="key-note">💡 同上，Key 只存在瀏覽器記憶體，不上傳。兩個 Key 都填的話，系統會用 GPT-4o；只有 Claude Key 則用 Claude Sonnet。</div>
+        </div>
+        <div class="ai-model-note">⚡ <strong>沒有 Key 也沒關係</strong>——「📋 生成結構版提示詞」不需要任何 Key，直接可以用。</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('img')">🖼 圖片提示詞</button>
+    <button class="tab" onclick="switchTab('vid')">🎬 影片提示詞</button>
+  </div>
+
+  <!-- ══════════════════ 圖片 ══════════════════ -->
+  <div class="panel active" id="panel-img">
+
+    <!-- 快速範本 -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-icon">⚡</span>
+        <div>
+          <div class="section-title">快速範本</div>
+          <div class="section-desc">點選套用常用風格預設，之後再個別調整欄位</div>
+        </div>
+      </div>
+      <div class="template-grid" id="img-templates"></div>
+    </div>
+
+    <!-- 臉部參考照片（圖片面板） -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-icon">📸</span>
+        <div>
+          <div class="section-title">臉部 / 外觀參考照片</div>
+          <div class="section-desc">上傳後，生成提示詞會加入參考圖說明；使用「✦ AI 敘事潤色」時，圖片會直接送給 AI 作為視覺參考</div>
+        </div>
+      </div>
+      <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+        <div class="field">
+          <div class="field-label">主角臉模 / 外觀參考圖</div>
+          <div class="upload-area" id="img-upload-1" onclick="document.getElementById('img-file-1').click()">
+            <input type="file" id="img-file-1" accept="image/*" style="display:none" onchange="handleUpload(this,'img',1)">
+            <div id="img-ph-1" class="upload-placeholder-inner">
+              <div class="upload-plus">＋</div>
+              <div style="font-size:12px;color:var(--muted)">點擊上傳照片</div>
+              <div style="font-size:10px;color:var(--hint);margin-top:2px">JPG / PNG / WEBP，建議正面清晰人像</div>
+            </div>
+            <div id="img-pv-1" class="upload-preview-row" style="display:none">
+              <img id="img-thumb-1" class="upload-thumb" src="" alt="">
+              <div class="upload-meta">
+                <div id="img-fn-1" class="upload-filename"></div>
+                <div class="upload-hint-ok">✓ 已載入，AI 潤色時會附上此圖</div>
+              </div>
+              <button class="upload-clear-btn" onclick="clearUpload(event,'img',1)">移除</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">次要參考（服裝 / 場景，選填）</div>
+          <div class="upload-area" id="img-upload-2" onclick="document.getElementById('img-file-2').click()">
+            <input type="file" id="img-file-2" accept="image/*" style="display:none" onchange="handleUpload(this,'img',2)">
+            <div id="img-ph-2" class="upload-placeholder-inner">
+              <div class="upload-plus">＋</div>
+              <div style="font-size:12px;color:var(--muted)">點擊上傳照片</div>
+              <div style="font-size:10px;color:var(--hint);margin-top:2px">服裝風格、場景、道具等次要參考</div>
+            </div>
+            <div id="img-pv-2" class="upload-preview-row" style="display:none">
+              <img id="img-thumb-2" class="upload-thumb" src="" alt="">
+              <div class="upload-meta">
+                <div id="img-fn-2" class="upload-filename"></div>
+                <div class="upload-hint-ok">✓ 已載入，AI 潤色時會附上此圖</div>
+              </div>
+              <button class="upload-clear-btn" onclick="clearUpload(event,'img',2)">移除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 品質基準 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">⚙️</span>
+        <div><div class="section-title">品質基準</div><div class="section-desc">解析度與細緻程度，放在提示詞最前面效果最穩</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">解析度</div>
+          <select id="i-res">
+            <option value="8K 超高解析度">8K 超高解析度</option>
+            <option value="4K 高解析度">4K 高解析度</option>
+            <option value="高解析度">高解析度</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">渲染品質
+            <span class="tip-icon">?<div class="tip-box"><strong>渲染品質</strong>強調輸出質感的形容詞，2-3個即可。<span class="eg">範例：電影級、超寫實、大師之作、頂級商業質感、虛幻引擎5渲染</span></div></span>
+          </div>
+          <input id="i-quality" placeholder="例：電影級、超寫實、大師之作、頂級商業質感、虛幻引擎5渲染" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 風格 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🎨</span>
+        <div><div class="section-title">風格定義</div><div class="section-desc">確立美學方向與情緒基調，決定「看起來像哪種作品」</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">美學類型
+            <span class="tip-icon">?<div class="tip-box"><strong>美學類型</strong>視覺風格分類。<span class="eg">· 電影級商業廣告<br>· 武俠水墨插畫<br>· 3D動畫收藏海報<br>· 奢華時尚雜誌<br>· 超寫實古裝大片<br>· 概念藝術設計圖</span></div></span>
+          </div>
+          <input id="i-style" placeholder="例：電影級商業廣告／武俠水墨插畫／3D動畫收藏海報／奢華時尚雜誌／超寫實古裝大片" />
+        </div>
+        <div class="field">
+          <div class="field-label">整體氛圍
+            <span class="tip-icon">?<div class="tip-box"><strong>整體氛圍</strong>情緒形容詞，補強風格感受層。<span class="eg">· 史詩、壓迫、神秘<br>· 奢華、感性、精緻<br>· 唯美、夢幻、靜謐<br>· 冷峻、殺氣、張力十足<br>· 趣味、活潑、驚喜</span></div></span>
+          </div>
+          <input id="i-mood" placeholder="例：史詩壓迫感／奢華感性精緻／唯美夢幻靜謐／冷峻殺氣張力十足／趣味活潑驚喜" />
+        </div>
+        <div class="field">
+          <div class="field-label">參考風格/IP
+            <span class="tip-icon">?<div class="tip-box"><strong>參考風格IP</strong>借用特定視覺語言風格。<span class="eg">· 當代武俠電影亮調<br>· 古典大師油畫調色<br>· 底片膠片顆粒感<br>· 3D動畫高階收藏級人物設計</span></div></span>
+          </div>
+          <input id="i-ref" placeholder="例：當代武俠電影亮調／古典大師油畫調色／底片膠片顆粒感／3D動畫高階收藏級設計" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 主體 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">👤</span>
+        <div><div class="section-title">主體描述</div><div class="section-desc">描述人物外觀。重點：用「可視化細節」，避免純情緒形容詞</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">外觀特徵
+            <span class="tip-icon">?<div class="tip-box"><strong>外觀特徵</strong>頭髮、膚色、五官等固定外觀。<span class="eg">✅ 銀灰長髮高馬尾、劍眉星目、紅色眼妝<br>❌ 很帥、高冷（模型無法渲染情緒）</span></div></span>
+          </div>
+          <input id="i-look" placeholder="例：銀灰長髮高馬尾、劍眉星目、深邃三維五官、古銅膚色；或：黑色短髮、丹鳳眼、精緻小臉、白皙肌膚" />
+        </div>
+        <div class="field">
+          <div class="field-label">服裝 / 配件
+            <span class="tip-icon">?<div class="tip-box"><strong>服裝配件</strong>材質、顏色、細節越具體越好。<span class="eg">· 黑色純色金繡龍紋古裝袍<br>· 鏤空鑽石鑲金精靈耳環<br>· 深綠色絲綢長袍、金色鱗片刺繡<br>· 黑色奢華風衣連身裙、黑色高跟鞋</span></div></span>
+          </div>
+          <input id="i-outfit" placeholder="例：黑色純色金繡龍紋古裝袍、玉帶束腰、手工刺繡披風；或：深綠絲綢長袍配金色鱗片刺繡、黑色奢華風衣連身裙" />
+        </div>
+        <div class="field">
+          <div class="field-label">表情 / 神態
+            <span class="tip-icon">?<div class="tip-box"><strong>表情神態</strong>可見細節，非情緒概述。<span class="eg">✅ 眼神銳利如刀、嘴角勾起極淡的笑<br>✅ 臉上洋溢驚喜、睫毛劇烈顫抖<br>❌ 看起來很厲害、很溫柔</span></div></span>
+          </div>
+          <input id="i-expr" placeholder="例：眼神銳利如刀、嘴角勾起極淡的笑；或：臉上洋溢驚喜、睫毛顫抖；或：眉頭微蹙、嘴唇緊抿、眼眶微紅" />
+        </div>
+        <div class="field">
+          <div class="field-label">動作 / 姿態
+            <span class="tip-icon">?<div class="tip-box"><strong>動作姿態</strong>描述肢體位置與動勢。<span class="eg">· 雙手持長刀直指前方<br>· 坐在巨大懸浮相框底部邊緣<br>· 長臂一伸，將人打橫抱入懷中<br>· 一腿自然懸在相框外，舉手機自拍</span></div></span>
+          </div>
+          <input id="i-pose" placeholder="例：雙手持長刀直指前方、衣袍隨風獵獵飛揚；或：單膝跪地、低頭拱手；或：坐在懸崖邊緣、一腿垂掛在外、手撐岩面" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 場景 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🏔️</span>
+        <div><div class="section-title">場景 / 環境</div><div class="section-desc">描述地點、時間與空間氛圍，具體地名比「某個山上」更穩定</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">地點
+            <span class="tip-icon">?<div class="tip-box"><strong>地點</strong>越具體，模型越穩定。<span class="eg">· 陡峭岩壁邊緣<br>· 掛滿祈福木牌的法閣<br>· 沙漠公路（沿途無植被）<br>· 大稻埕巴洛克式老街<br>· 高雄流行音樂中心前</span></div></span>
+          </div>
+          <input id="i-loc" placeholder="例：陡峭岩壁懸崖邊緣、掛滿祈福木牌的法閣；或：大稻埕老街、霓虹夜市；或：沙漠公路（沿途無植被）、海邊礁石" />
+        </div>
+        <div class="field">
+          <div class="field-label">時間 / 天氣
+            <span class="tip-icon">?<div class="tip-box"><strong>時間天氣</strong>影響整張圖的光影基調。<span class="eg">· 黃金時刻 (Golden Hour) 日落<br>· 黃昏逆光<br>· 夜晚星空<br>· 清晨雲霧繚繞<br>· 狂風大作的山頂</span></div></span>
+          </div>
+          <input id="i-time" placeholder="例：黃金時刻(Golden Hour)日落逆光；或：清晨雲霧繚繞、薄霧未散；或：深夜繁星、月光冷照；或：暴風雨前夕、烏雲翻湧" />
+        </div>
+        <div class="field">
+          <div class="field-label">環境細節
+            <span class="tip-icon">?<div class="tip-box"><strong>環境細節</strong>空間中飄動/散落的元素，增加動感與層次。<span class="eg">· 強風吹拂長袍與髮絲<br>· 落葉飛舞、塵土揚起<br>· 空氣中飄浮的櫻花特效<br>· 紅燈籠光影在青石階交錯<br>· 霓虹燈與廣告看板環繞</span></div></span>
+          </div>
+          <input id="i-env" placeholder="例：強風吹拂長袍與髮絲、落葉紛飛揚塵；或：空氣中飄浮金色粒子、地面有水霧反光；或：紅燈籠光影在青石階交錯" />
+        </div>
+        <div class="field">
+          <div class="field-label">周邊塗鴉 / 裝飾元素
+            <span class="tip-icon">?<div class="tip-box"><strong>周邊裝飾</strong>適用於海報/收藏版設計。<span class="eg">· 手繪單色鳥居、拉麵碗、摺紙鶴<br>· 高雄85大樓、音符線條<br>· 留白充足、優雅簡約版式</span></div></span>
+          </div>
+          <input id="i-deco" placeholder="例（海報用）：手繪單色鳥居、拉麵碗、摺紙鶴；或：高雄85大樓輪廓、音符線條；或：留白充足、優雅簡約版式" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 光影 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">💡</span>
+        <div><div class="section-title">光影 / 色彩</div><div class="section-desc">指定光源方向與色調，是「電影感」的關鍵層</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">主色調
+            <span class="tip-icon">?<div class="tip-box"><strong>主色調</strong>2-3個顏色搭配最佳。<span class="eg">· 青龍綠 + 冷冽金<br>· 豐富的黑色與金色<br>· 深綠絲綢 + 金色鱗片<br>· 暖金 + 沙漠橘棕<br>· 海港深藍 → 日落橘粉漸變</span></div></span>
+          </div>
+          <input id="i-color" placeholder="例：青龍綠＋冷冽金；或：豐富的黑色與金色；或：深綠絲綢＋金色鱗片；或：暖金＋沙漠橘棕；或：海港深藍→日落橘粉漸變" />
+        </div>
+        <div class="field">
+          <div class="field-label">光源方向
+            <span class="tip-icon">?<div class="tip-box"><strong>光源方向</strong>決定立體感與戲劇性。<span class="eg">· 暖金逆光（背光，輪廓發光）<br>· Dingdar頂光（強調五官立體感）<br>· 輪廓光 Rim Light（側後方，勾勒邊緣）<br>· 散射柔光（均勻，時尚感）</span></div></span>
+          </div>
+          <input id="i-light" placeholder="例：暖金逆光（背光，輪廓發光）；或：Dingdar頂光（強調五官立體）；或：輪廓光Rim Light（側後方勾勒邊緣）；或：散射柔光（均勻時尚感）" />
+        </div>
+        <div class="field">
+          <div class="field-label">色彩情緒
+            <span class="tip-icon">?<div class="tip-box"><strong>色彩情緒</strong>色調的冷暖與對比程度。<span class="eg">· 高對比強陰影（戲劇性）<br>· 低飽和冷色系（壓抑神秘）<br>· 暖色膠片顆粒（懷舊）<br>· 鮮豔飽和（商業感）<br>· 現代簡約潔淨視覺力量</span></div></span>
+          </div>
+          <input id="i-tone" placeholder="例：高對比強陰影（戲劇性）；或：低飽和冷色系（壓抑神秘）；或：暖色膠片顆粒（懷舊感）；或：鮮豔飽和（商業廣告感）" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 構圖 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">📐</span>
+        <div><div class="section-title">構圖 / 輸出規格</div><div class="section-desc">指定畫面比例、鏡頭角度與景深</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">畫面比例</div>
+          <select id="i-ratio">
+            <option value="16:9 橫版">16:9 橫版（影片封面、橫幅）</option>
+            <option value="4:5 直版">4:5 直版（IG貼文）</option>
+            <option value="9:16 直版">9:16 直版（限時動態、Reels）</option>
+            <option value="1:1 方形">1:1 方形</option>
+            <option value="3:4 直版">3:4 直版（海報）</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">鏡頭角度
+            <span class="tip-icon">?<div class="tip-box"><strong>鏡頭角度</strong>影響視覺重心與氣場。<span class="eg">· 正面半身（清晰展示人物）<br>· 低角度仰拍（主角更有氣勢）<br>· 高角度俯拍（縮小人物，強調場景）<br>· 廣角戲劇性（誇張透視）<br>· 極致電影級特寫</span></div></span>
+          </div>
+          <input id="i-cam" placeholder="例：正面半身（清晰展示人物）；或：低角度仰拍（讓主角更有氣勢）；或：高角度俯拍（強調場景）；或：廣角戲劇性（誇張透視感）" />
+        </div>
+        <div class="field">
+          <div class="field-label">景深 / 焦段
+            <span class="tip-icon">?<div class="tip-box"><strong>景深焦段</strong>控制背景模糊程度。<span class="eg">· 全片幅大光圈鏡頭 f/1.4<br>· 淺景深（bokeh效果）<br>· 魚眼鏡頭（廣角誇張）<br>· 景深效果（Unreal Engine 5）</span></div></span>
+          </div>
+          <input id="i-lens" placeholder="例：全片幅大光圈鏡頭 f/1.4、淺景深bokeh背景虛化；或：魚眼鏡頭廣角誇張；或：長焦壓縮感、人物突出背景模糊" />
+        </div>
+        <div class="field">
+          <div class="field-label">版面文字（海報用）
+            <span class="tip-icon">?<div class="tip-box"><strong>版面文字</strong>適用收藏版海報排版。<span class="eg">· 主標題：「忠義」大字半透明<br>· 副標題：「單騎千里，萬夫莫敵」<br>· 手寫標題 "JAPAN"，下配國旗圖標<br>· 標語：Where the Sea Meets the Sound</span></div></span>
+          </div>
+          <input id="i-text" placeholder="例（海報用）：主標題「忠義」大字半透明；或：副標「單騎千里，萬夫莫敵」；或：手寫標題"JAPAN"下配國旗；或：標語 Where the Sea Meets the Sound" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 負面 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🚫</span>
+        <div><div class="section-title">負面提示詞</div><div class="section-desc">告訴模型不要生成的元素，避免常見崩圖</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--hint);margin-bottom:6px">👆 點選標籤自動填入，可多選</div>
+      <div class="legend">
+        <div class="legend-item" onclick="toggleNeg(this,'i-neg','拒絕卡通風格')" data-neg="拒絕卡通風格"><div class="legend-dot"></div>拒絕卡通風格<div class="tip-box"><strong>防止卡通化</strong>寫實圖必填。AI傾向卡通人物。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'i-neg','拒絕低品質燈光')" data-neg="拒絕低品質燈光"><div class="legend-dot"></div>拒絕低品質燈光<div class="tip-box"><strong>防止平光</strong>避免生成無立體感的平面打光。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'i-neg','拒絕僵硬肢體動作')" data-neg="拒絕僵硬肢體動作"><div class="legend-dot"></div>拒絕僵硬肢體<div class="tip-box"><strong>防止木偶感</strong>動作場景必加。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'i-neg','拒絕模糊反射')" data-neg="拒絕模糊反射"><div class="legend-dot"></div>拒絕模糊反射<div class="tip-box"><strong>防止假金屬</strong>有金屬/光澤材質時必加。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'i-neg','拒絕多餘肢體')" data-neg="拒絕多餘肢體"><div class="legend-dot"></div>拒絕多餘肢體<div class="tip-box"><strong>防止手指崩壞</strong>AI最常多手指/多肢體。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'i-neg','拒絕廉價質感')" data-neg="拒絕廉價質感"><div class="legend-dot"></div>拒絕廉價質感<div class="tip-box"><strong>防止廉價商業感</strong>高端廣告必加。</div></div>
+      </div>
+      <div class="field"><textarea id="i-neg" placeholder="點選上方標籤快速填入，或直接手動輸入..." style="min-height:72px"></textarea></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="gen-btn" onclick="genImg()">📋 生成結構版提示詞</button>
+      <button class="ai-btn" id="ai-img-btn" onclick="aiPolishImg()">✦ AI 敘事潤色</button>
+    </div>
+    <p class="notice">✦ AI 敘事潤色 需設定 API Key（右上角 ⚙ 設定），支援 Claude 或 ChatGPT</p>
+
+    <div class="output-box" id="out-img">
+      <div class="output-head">
+        <div class="output-tabs">
+          <button class="out-tab active" onclick="switchOutTab('img','raw')">結構版</button>
+          <button class="out-tab" onclick="switchOutTab('img','narrative')" id="img-narrative-tab">敘事版</button>
+        </div>
+        <button class="copy-btn" onclick="copyActive('img')">複製</button>
+      </div>
+      <div class="output-pane active" id="img-raw-pane">
+        <div class="output-text raw" id="out-img-text"></div>
+      </div>
+      <div class="output-pane" id="img-narrative-pane">
+        <div class="output-text narrative" id="out-img-narrative"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 影片 ══════════════════ -->
+  <div class="panel" id="panel-vid">
+
+    <!-- 快速範本 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">⚡</span>
+        <div><div class="section-title">快速範本</div><div class="section-desc">點選套用常用影片風格預設</div></div>
+      </div>
+      <div class="template-grid" id="vid-templates"></div>
+    </div>
+
+    <!-- 臉部參考照片（影片面板） -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-icon">📸</span>
+        <div>
+          <div class="section-title">臉部 / 外觀參考照片</div>
+          <div class="section-desc">上傳後，生成提示詞會加入參考圖說明；使用「✦ AI 敘事潤色」時，圖片會直接送給 AI 作為視覺參考</div>
+        </div>
+      </div>
+      <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+        <div class="field">
+          <div class="field-label">主角臉模 / 外觀參考圖</div>
+          <div class="upload-area" id="vid-upload-1" onclick="document.getElementById('vid-file-1').click()">
+            <input type="file" id="vid-file-1" accept="image/*" style="display:none" onchange="handleUpload(this,'vid',1)">
+            <div id="vid-ph-1" class="upload-placeholder-inner">
+              <div class="upload-plus">＋</div>
+              <div style="font-size:12px;color:var(--muted)">點擊上傳照片</div>
+              <div style="font-size:10px;color:var(--hint);margin-top:2px">JPG / PNG / WEBP，建議正面清晰人像</div>
+            </div>
+            <div id="vid-pv-1" class="upload-preview-row" style="display:none">
+              <img id="vid-thumb-1" class="upload-thumb" src="" alt="">
+              <div class="upload-meta">
+                <div id="vid-fn-1" class="upload-filename"></div>
+                <div class="upload-hint-ok">✓ 已載入，AI 潤色時會附上此圖</div>
+              </div>
+              <button class="upload-clear-btn" onclick="clearUpload(event,'vid',1)">移除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 工具設定 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">⚙️</span>
+        <div><div class="section-title">工具 / 基本設定</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">AI 模型
+            <span class="tip-icon">?<div class="tip-box"><strong>AI 模型</strong>選對平台提示詞才有效。<span class="eg">· Seedance 2.0 — 各家通用，動作流暢<br>· Kling 2.5 — 首尾幀控制最穩<br>· Higgsfield AI — 真人幾乎不擋，美業/人像首選<br>· Kling AI neo banana pro — 雲霄飛車/FPV類</span></div></span>
+          </div>
+          <select id="v-model">
+            <option value="Seedance 2.0">Seedance 2.0（通用首選）</option>
+            <option value="Kling 2.5">Kling 2.5（首尾幀控制）</option>
+            <option value="Higgsfield AI，影片模型：Seedance 2.0">Higgsfield AI（真人/人像）</option>
+            <option value="Kling AI neo banana pro">Kling AI neo banana pro（FPV/特效）</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">片長</div>
+          <select id="v-dur">
+            <option value="5秒">5 秒</option>
+            <option value="10秒">10 秒</option>
+            <option value="15秒" selected>15 秒</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">畫面比例</div>
+          <select id="v-ratio">
+            <option value="16:9 橫版">16:9 橫版</option>
+            <option value="9:16 直版">9:16 直版</option>
+            <option value="1:1 方形">1:1 方形</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">畫質描述</div>
+          <input id="v-quality" placeholder="例：電影級超寫實8K大師之作；或：高幀率4K超清（運動感）；或：頂級時尚廣告質感；或：虛幻引擎5渲染、景深效果" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 風格基調 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🎬</span>
+        <div><div class="section-title">整體風格基調</div><div class="section-desc">定錨整支影片的視覺方向，進分鏡前先確定這三欄</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">影片類型
+            <span class="tip-icon">?<div class="tip-box"><strong>影片類型</strong>決定敘事節奏與剪輯感。<span class="eg">· 史詩武俠動作<br>· 超豪華電影級商業廣告<br>· 古裝浪漫愛情<br>· 時尚香水廣告<br>· 喜劇格鬥動作<br>· 一鏡到底武俠大片<br>· FPV無人機第一人稱</span></div></span>
+          </div>
+          <input id="v-genre" placeholder="例：史詩武俠動作；或：超豪華電影級商業廣告；或：古裝浪漫愛情；或：時尚香水廣告；或：喜劇格鬥；或：FPV無人機第一人稱穿越" />
+        </div>
+        <div class="field">
+          <div class="field-label">色調氛圍
+            <span class="tip-icon">?<div class="tip-box"><strong>色調氛圍</strong>整支片的視覺語言。<span class="eg">· 暗色調 + 輪廓光（壓迫感）<br>· 黃金時刻暖光（奢華感）<br>· 當代武俠電影亮調（清透水墨青黛+鎏金高光）<br>· 電影膠片顆粒（懷舊）<br>· 高幀率4K超清（運動感）</span></div></span>
+          </div>
+          <input id="v-mood" placeholder="例：暗色調+情緒化輪廓光（壓迫感）；或：黃金時刻暖光（奢華感）；或：當代武俠電影亮調（清透水墨青黛+鎏金高光）；或：電影膠片顆粒（懷舊）" />
+        </div>
+        <div class="field">
+          <div class="field-label">主角描述
+            <span class="tip-icon">?<div class="tip-box"><strong>主角描述</strong>有上傳參考圖就寫「參考上傳圖片角色」，再補細節。<span class="eg">參考上傳圖片角色，銀灰長髮高馬尾，黑色龍袍金色龍紋，面容冷峻。</span></div></span>
+          </div>
+          <input id="v-char" placeholder="有上傳參考圖可寫：「參考上傳圖片角色」再補細節。例：參考上傳圖片角色，銀灰長髮高馬尾，黑色龍袍金色龍紋，面容冷峻" />
+        </div>
+        <div class="field">
+          <div class="field-label">核心動作公式
+            <span class="tip-icon">?<div class="tip-box"><strong>核心動作公式</strong>整支片的動作邏輯或敘事節拍。<span class="eg">· 察覺→切入→破勢→連破→收勢<br>· 推鏡→轉身→能量蓄積→斬擊→衝擊<br>· 逃婚→墜落→被接住→近距離對視<br>· 起勢掠驛→衣破格鬥→天坑激鬥→收勢</span></div></span>
+          </div>
+          <input id="v-formula" placeholder="例：察覺→切入→破勢→連破→收勢；或：推鏡→轉身→能量蓄積→斬擊→衝擊；或：起勢掠驛→格鬥→追逐→天坑激鬥→收勢定格" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 分鏡 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🎞️</span>
+        <div><div class="section-title">時間軸分鏡</div><div class="section-desc">按時間段拆解鏡頭。景別 = 拍多遠；鏡頭運動 = 攝影機怎麼動</div></div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase">景別速查</div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot"></div>特寫 CU<div class="tip-box"><strong>特寫（Close-Up）</strong>臉部或局部。<br>用於：眼神、手部、道具細節、情緒爆發點。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>近景 MCU<div class="tip-box"><strong>中近景（MCU）</strong>胸部以上。<br>用於：對話、表情、人物互動。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>中景 MS<div class="tip-box"><strong>中景（MS）</strong>腰部以上。<br>用於：動作交代、人物全貌。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>中全景 MFS<div class="tip-box"><strong>中全景（MFS）</strong>膝蓋以上。<br>用於：肢體動作、走位移動。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>全景 WS<div class="tip-box"><strong>全景（WS）</strong>全身+部分場景。<br>用於：大動作場面。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>遠景 LS<div class="tip-box"><strong>遠景（LS）</strong>人物很小、場景很大。<br>用於：壯闊場面、史詩感開場。</div></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:7px;letter-spacing:.06em;text-transform:uppercase">鏡頭運動速查</div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot"></div>固定 Static<div class="tip-box"><strong>固定</strong>攝影機不動。<br>用於：靜止張力、台詞時刻。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>推進 Push In<div class="tip-box"><strong>推進</strong>鏡頭慢慢靠近。<br>用於：強調細節、製造緊張感。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>拉遠 Dolly Out<div class="tip-box"><strong>拉遠</strong>鏡頭向後退。<br>用於：揭示更大場景、結尾收束。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>環繞 Orbit<div class="tip-box"><strong>環繞</strong>攝影機繞主體旋轉。<br>用於：展示氣場、能量蓄力。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>跟拍 Tracking<div class="tip-box"><strong>跟拍</strong>跟著主體移動。<br>用於：追逐、奔跑、移動中動作。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>跟搖 Pan<div class="tip-box"><strong>快速跟搖</strong>水平旋轉跟隨。<br>用於：快速轉身、突發動作反應。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>俯視跟拍<div class="tip-box"><strong>俯視跟拍</strong>從高處向下拍並跟隨。<br>用於：墜落、落地衝擊、神明視角。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>背跟→環繞<div class="tip-box"><strong>背跟轉環繞</strong>先跟在角色背後，再環繞至正面。<br>用於：一鏡到底開場、展示角色登場。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>穿洞推進<div class="tip-box"><strong>穿洞推進</strong>穿越拱門/洞穴快速推進。<br>用於：場景轉換、加速感、穿越空間。</div></div>
+          <div class="legend-item"><div class="legend-dot"></div>FPV俯衝<div class="tip-box"><strong>FPV俯衝</strong>第一人稱視角急速衝下。<br>用於：無人機視角、極速穿越場景。</div></div>
+        </div>
+      </div>
+
+      <div id="shots-container">
+        <div class="shot-block">
+          <div class="shot-head"><span class="shot-num">第 1 段</span><button class="remove-btn" onclick="removeShot(this)">移除</button></div>
+          <div class="fields">
+            <div class="field"><div class="field-label">時間段</div><input class="s-time" placeholder="00:00–00:03" /></div>
+            <div class="field"><div class="field-label">景別</div>
+              <select class="s-shot">
+                <option value="特寫 (CU)">特寫 CU — 臉部/局部</option>
+                <option value="近景 (MCU)">近景 MCU — 胸部以上</option>
+                <option value="中景 (MS)">中景 MS — 腰部以上</option>
+                <option value="中全景 (MFS)">中全景 MFS — 膝蓋以上</option>
+                <option value="全景 (WS)">全景 WS — 全身+場景</option>
+                <option value="遠景 (LS)">遠景 LS — 人小場景大</option>
+              </select>
+            </div>
+            <div class="field"><div class="field-label">鏡頭運動</div>
+              <select class="s-move">
+                <option value="固定 (Static)">固定 — 攝影機不動</option>
+                <option value="推進 (Push In)">推進 — 慢慢靠近主體</option>
+                <option value="拉遠 (Dolly Out)">拉遠 — 向後退開</option>
+                <option value="環繞 180°">環繞 180° — 繞主體旋轉</option>
+                <option value="跟拍 (Tracking)">跟拍 — 跟著主體移動</option>
+                <option value="快速跟搖 (Pan)">快速跟搖 — 水平旋轉跟隨</option>
+                <option value="俯視跟拍 (High Angle)">俯視跟拍 — 從高處向下</option>
+                <option value="廣角跟隨 (Wide Tracking)">廣角跟隨 — 宏大視角</option>
+                <option value="低角度背跟→環繞180°→仰拍→推進穿洞">背跟→環繞→穿洞（一鏡到底）</option>
+                <option value="FPV高空俯衝急推">FPV高空俯衝急推</option>
+                <option value="FPV貼地橫滾穿越">FPV貼地橫滾穿越</option>
+                <option value="手持晃拍繞前">手持晃拍繞前（紀實感）</option>
+              </select>
+            </div>
+            <div class="field"><div class="field-label">動作描述</div><input class="s-action" placeholder="武士雙手持刀直指前方，雙眼緊閉" /></div>
+            <div class="field"><div class="field-label">表情 / 台詞</div><input class="s-expr" placeholder='眼神銳利 / 台詞：「退！」' /></div>
+            <div class="field"><div class="field-label">VFX 特效</div><input class="s-vfx" placeholder="黑煙煞氣從體內升起、匯聚刀刃" /></div>
+            <div class="field"><div class="field-label">音效節點</div><input class="s-sfx" placeholder="筆刷沾墨聲、黑煙破空聲" /></div>
+          </div>
+        </div>
+      </div>
+      <button class="add-shot-btn" onclick="addShot()">＋ 新增分鏡段</button>
+    </div>
+
+    <!-- 音效 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🎵</span>
+        <div><div class="section-title">音效 / 音樂</div><div class="section-desc">整體配樂方向與音效設計</div></div>
+      </div>
+      <div class="fields">
+        <div class="field">
+          <div class="field-label">音樂氛圍
+            <span class="tip-icon">?<div class="tip-box"><strong>音樂氛圍</strong>整體配樂類型與情緒走向。<span class="eg">· 低沉貝斯 + 現代奢華電子搖滾<br>· 史詩交響 + 東方笛聲<br>· 高亢電子音樂高潮<br>· 頂級電影級配樂</span></div></span>
+          </div>
+          <input id="v-music" placeholder="例：低沉貝斯＋現代奢華電子搖滾漸強；或：史詩交響配東方笛聲；或：高亢電子音樂衝向高潮；或：頂級電影級配樂、情緒遞進" />
+        </div>
+        <div class="field">
+          <div class="field-label">環境音效
+            <span class="tip-icon">?<div class="tip-box"><strong>環境音效</strong>場景自然音和動作音。<span class="eg">· 法陣展開的嗡鳴、氣流震爆聲<br>· 沉重岩石撞擊聲、巨石崩塌<br>· 真實引擎聲、柔和風聲<br>· 水下聲切換至電子音樂高潮</span></div></span>
+          </div>
+          <input id="v-sfx" placeholder="例：風嘯聲＋刀鋒破空聲；或：法陣展開的嗡鳴＋氣流震爆聲；或：沉重岩石撞擊聲、巨石崩塌；或：真實引擎轟鳴＋輪胎摩擦聲" />
+        </div>
+        <div class="field">
+          <div class="field-label">人聲 / 台詞
+            <span class="tip-icon">?<div class="tip-box"><strong>人聲台詞</strong>指定角色、語氣和台詞內容。<span class="eg">· 柔和女聲耳語：「這一刻，屬於妳。」<br>· 女戰士怒喝：「退！」<br>· 男主低沉磁性：「今日之後，天下唯我。」</span></div></span>
+          </div>
+          <input id="v-voice" placeholder='例：男主低沉磁性：「今日之後，天下唯我。」；或：柔和女聲耳語：「這一刻，屬於妳。」；或：女戰士怒喝：「退！」' />
+        </div>
+      </div>
+    </div>
+
+    <!-- 負面 -->
+    <div class="section">
+      <div class="section-head"><span class="section-icon">🚫</span>
+        <div><div class="section-title">負面提示詞</div><div class="section-desc">告訴模型不要出現的元素</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--hint);margin-bottom:6px">👆 點選標籤自動填入，可多選</div>
+      <div class="legend">
+        <div class="legend-item" onclick="toggleNeg(this,'v-neg','拒絕卡通風格')" data-neg="拒絕卡通風格"><div class="legend-dot"></div>拒絕卡通風格<div class="tip-box"><strong>防止卡通化</strong>寫實影片必填。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'v-neg','拒絕僵硬肢體動作')" data-neg="拒絕僵硬肢體動作"><div class="legend-dot"></div>拒絕僵硬肢體<div class="tip-box"><strong>防止木偶感</strong>動作場景必加。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'v-neg','拒絕不切實際的物理效果')" data-neg="拒絕不切實際的物理效果"><div class="legend-dot"></div>拒絕不切實際物理<div class="tip-box"><strong>防止穿模</strong>戰鬥/爆炸場景必加。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'v-neg','拒絕低品質燈光')" data-neg="拒絕低品質燈光"><div class="legend-dot"></div>拒絕低品質燈光<div class="tip-box"><strong>防止平光崩壞</strong>強調光影時必加。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'v-neg','拒絕錯誤標誌')" data-neg="拒絕錯誤標誌"><div class="legend-dot"></div>拒絕錯誤標誌<div class="tip-box"><strong>防止LOGO變形</strong>品牌廣告必加。</div></div>
+        <div class="legend-item" onclick="toggleNeg(this,'v-neg','拒絕模糊反射')" data-neg="拒絕模糊反射"><div class="legend-dot"></div>拒絕模糊反射<div class="tip-box"><strong>防止假金屬</strong>有金屬光澤時必加。</div></div>
+      </div>
+      <div class="field"><textarea id="v-neg" placeholder="點選上方標籤快速填入，或直接手動輸入..." style="min-height:72px"></textarea></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="gen-btn" onclick="genVid()">📋 生成結構版提示詞</button>
+      <button class="ai-btn" id="ai-vid-btn" onclick="aiPolishVid()">✦ AI 敘事潤色</button>
+    </div>
+    <p class="notice">✦ AI 敘事潤色 需設定 API Key（右上角 ⚙ 設定），支援 Claude 或 ChatGPT</p>
+
+    <div class="output-box" id="out-vid">
+      <div class="output-head">
+        <div class="output-tabs">
+          <button class="out-tab active" onclick="switchOutTab('vid','raw')">結構版</button>
+          <button class="out-tab" onclick="switchOutTab('vid','narrative')" id="vid-narrative-tab">敘事版</button>
+        </div>
+        <button class="copy-btn" onclick="copyActive('vid')">複製</button>
+      </div>
+      <div class="output-pane active" id="vid-raw-pane">
+        <div class="output-text raw" id="out-vid-text"></div>
+      </div>
+      <div class="output-pane" id="vid-narrative-pane">
+        <div class="output-text narrative" id="out-vid-narrative"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Photo upload ──
+const uploadedImages = { img: {}, vid: {} };
+
+function handleUpload(input, panel, slot) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    uploadedImages[panel][slot] = { base64: e.target.result, name: file.name, type: file.type };
+    document.getElementById(`${panel}-thumb-${slot}`).src = e.target.result;
+    document.getElementById(`${panel}-fn-${slot}`).textContent = file.name;
+    document.getElementById(`${panel}-ph-${slot}`).style.display = 'none';
+    document.getElementById(`${panel}-pv-${slot}`).style.display = 'flex';
+    document.getElementById(`${panel}-upload-${slot}`).classList.add('has-file');
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearUpload(e, panel, slot) {
+  e.stopPropagation();
+  delete uploadedImages[panel][slot];
+  document.getElementById(`${panel}-file-${slot}`).value = '';
+  document.getElementById(`${panel}-ph-${slot}`).style.display = 'flex';
+  document.getElementById(`${panel}-pv-${slot}`).style.display = 'none';
+  document.getElementById(`${panel}-upload-${slot}`).classList.remove('has-file');
+}
+
+// ── Toggle negative prompt tags ──
+function toggleNeg(el, negId, val) {
+  const ta = document.getElementById(negId);
+  el.classList.toggle('active');
+  if (el.classList.contains('active')) {
+    const cur = ta.value.trim();
+    ta.value = cur ? cur + '、' + val : val;
+  } else {
+    const parts = ta.value.split('、').map(s => s.trim()).filter(s => s !== val);
+    ta.value = parts.join('、');
+  }
+}
+
+// ── Modal ──
+function openModal(){ document.getElementById('modal-overlay').classList.add('open'); }
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModalOutside(e){ if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+
+// ── Tab switching ──
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((el,i) => el.classList.toggle('active', i===(t==='img'?0:1)));
+  document.querySelectorAll('.panel').forEach((el,i) => el.classList.toggle('active', i===(t==='img'?0:1)));
+}
+function switchOutTab(panel, type) {
+  const rawPane = document.getElementById(panel+'-raw-pane');
+  const narPane = document.getElementById(panel+'-narrative-pane');
+  const tabs = document.querySelectorAll(`#out-${panel} .out-tab`);
+  rawPane.classList.toggle('active', type==='raw');
+  narPane.classList.toggle('active', type==='narrative');
+  tabs[0].classList.toggle('active', type==='raw');
+  tabs[1].classList.toggle('active', type==='narrative');
+}
+
+// ── Helpers ──
+function v(id) { return (document.getElementById(id)||{}).value||''; }
+function saveKey(provider) {
+  const id = provider==='gpt' ? 'api-key-gpt' : 'api-key';
+  const val = document.getElementById(id).value.trim();
+  if (!val) return;
+  sessionStorage.setItem('key_'+provider, val);
+  document.getElementById(provider===('gpt')?'gpt-saved':'claude-saved').classList.add('show');
+  updateKeyStatus();
+}
+function getClaudeKey(){ return sessionStorage.getItem('key_claude') || document.getElementById('api-key')?.value?.trim() || ''; }
+function getGptKey(){ return sessionStorage.getItem('key_gpt') || document.getElementById('api-key-gpt')?.value?.trim() || ''; }
+function updateKeyStatus(){
+  const hasClaude = !!getClaudeKey();
+  const hasGpt = !!getGptKey();
+  const dot = document.getElementById('key-dot');
+  const txt = document.getElementById('key-status-text');
+  if (hasClaude && hasGpt){ dot.className='key-dot on-both'; txt.textContent='Claude + GPT 已設定'; }
+  else if (hasClaude){ dot.className='key-dot on-claude'; txt.textContent='Claude Key 已設定'; }
+  else if (hasGpt){ dot.className='key-dot on-gpt'; txt.textContent='GPT Key 已設定'; }
+  else { dot.className='key-dot'; txt.textContent='未設定 API Key'; }
+}
+
+// ── AI call (auto-pick provider, supports vision images) ──
+async function callAI(sysPrompt, userMsg, images = []) {
+  const gptKey = getGptKey();
+  const claudeKey = getClaudeKey();
+
+  if (!gptKey && !claudeKey) {
+    openModal();
+    throw new Error('請先設定 API Key');
+  }
+
+  if (gptKey) {
+    const userContent = [{ type: 'text', text: userMsg }];
+    images.forEach(img => {
+      userContent.push({ type: 'image_url', image_url: { url: img.base64, detail: 'high' } });
+    });
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gptKey },
+      body: JSON.stringify({
+        model: 'gpt-4o', max_tokens: 2000,
+        messages: [{ role: 'system', content: sysPrompt }, { role: 'user', content: userContent }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.choices?.[0]?.message?.content || '';
+  } else {
+    const userContent = [{ type: 'text', text: userMsg }];
+    images.forEach(img => {
+      const b64 = img.base64.includes(',') ? img.base64.split(',')[1] : img.base64;
+      const mediaType = img.type || 'image/jpeg';
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } });
+    });
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2000, system: sysPrompt, messages: [{ role: 'user', content: userContent }] })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.content?.[0]?.text || '';
+  }
+}
+
+// ── Templates ──
+const IMG_TEMPLATES = [
+  { icon:'🏯', name:'武俠概念圖', desc:'武將氣場概念圖',
+    data:{ 'i-res':'8K 超高解析度','i-quality':'電影級、超寫實、大師之作','i-style':'概念藝術設計圖','i-mood':'史詩、壓迫、寂靜感','i-ref':'當代武俠電影亮調、古典大師油畫調色','i-color':'青龍綠＋冷冽金','i-light':'暖金逆光、輪廓光','i-tone':'高對比、現代簡約','i-ratio':'16:9 橫版','i-cam':'廣角戲劇性','i-neg':'拒絕卡通風格、拒絕低品質燈光、拒絕不切實際物理效果' }},
+  { icon:'🎎', name:'收藏版海報', desc:'旅遊/城市主題',
+    data:{ 'i-res':'8K 超高解析度','i-quality':'虛幻引擎5渲染、高品質紋理、景深效果','i-style':'3D動畫收藏版插畫','i-mood':'趣味活潑、驚喜','i-ref':'底片膠片顆粒感','i-tone':'色彩鮮豔精緻','i-ratio':'4:5 直版','i-neg':'拒絕廉價質感、拒絕僵硬肢體' }},
+  { icon:'🌊', name:'奢華廣告', desc:'商業/品牌視覺',
+    data:{ 'i-res':'8K 超高解析度','i-quality':'頂級時尚廣告、電影級商業廣告','i-style':'超豪華奢華商業廣告','i-mood':'感性、精緻、奢華','i-color':'豐富黑色與金色','i-light':'黃金時刻暖金逆光','i-tone':'高端質感、光澤反射','i-ratio':'16:9 橫版','i-cam':'低角度仰拍','i-neg':'拒絕廉價商業感、拒絕卡通風格、拒絕模糊反射' }},
+  { icon:'⚔️', name:'武士/動作', desc:'格鬥/特效場景',
+    data:{ 'i-res':'8K 超高解析度','i-quality':'電影級、大師之作、超寫實','i-style':'超寫實古裝大片','i-mood':'殺氣、壓迫、史詩','i-color':'暗色調、深紫黑色','i-light':'輪廓光、情緒化電影級','i-tone':'暗色調、高細節','i-ratio':'16:9 橫版','i-cam':'低角度仰拍、廣角戲劇性','i-neg':'拒絕卡通風格、拒絕僵硬肢體、拒絕低品質燈光、拒絕多餘肢體' }},
+  { icon:'📸', name:'美學時尚攝影', desc:'人物/雜誌封面',
+    data:{ 'i-res':'8K 超高解析度','i-quality':'頂級時尚雜誌攝影、超精細皮膚紋理、商業人像大師之作','i-style':'高端時尚雜誌封面攝影','i-mood':'優雅、自信、俐落感','i-ref':'現代時尚攝影風格、低飽和電影感調色','i-color':'奶油白＋玫瑰金＋炭灰','i-light':'散射柔光＋側面輪廓光','i-tone':'低飽和高質感、膚色通透','i-ratio':'4:5 直版','i-cam':'正面半身、極致電影級特寫','i-lens':'全片幅大光圈鏡頭 f/1.4、淺景深bokeh','i-neg':'拒絕卡通風格、拒絕廉價商業感、拒絕低品質燈光、拒絕多餘肢體' }},
+  { icon:'🗿', name:'質感手雕效果', desc:'石雕/木雕/銅像風',
+    data:{ 'i-res':'8K 超高解析度','i-quality':'超寫實材質細節、大師之作、博物館級精緻度','i-style':'超寫實手工雕刻概念藝術','i-mood':'莊嚴、永恆、沉靜力量','i-ref':'古典雕塑美學、文藝復興大理石雕刻質感','i-color':'象牙白大理石＋冷灰石紋；或：深棕木紋＋金箔點綴','i-light':'頂光＋環境漫射光（強調材質紋理與陰影）','i-tone':'低彩度、高細節、石材質感','i-ratio':'4:5 直版','i-cam':'正面全身或正面半身、略帶低角度仰拍','i-lens':'長焦壓縮感、人物突出背景虛化','i-neg':'拒絕卡通風格、拒絕模糊反射、拒絕廉價質感、拒絕低品質燈光' }},
+];
+
+const VID_TEMPLATES = [
+  { icon:'🗡️', name:'武俠動作', desc:'能量斬擊/法術',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影級 15秒超寫實影片、大師之作、最高畫質、8K解析度','v-genre':'史詩武俠動作','v-mood':'暗色調調色、情緒化電影級輪廓光','v-formula':'蓄力→能量爆發→斬擊→衝擊→收勢','v-music':'史詩配樂、沉重貝斯','v-neg':'拒絕卡通風格、拒絕僵硬肢體動作、拒絕不切實際的物理效果、拒絕低品質燈光' }},
+  { icon:'💃', name:'美業/人像', desc:'香氣/換裝影片',
+    data:{ 'v-model':'Higgsfield AI，影片模型：Seedance 2.0','v-dur':'15秒','v-ratio':'9:16 直版','v-quality':'電影級、超高清','v-genre':'時尚美業人像','v-mood':'溫暖夕陽 + 冷色調交替','v-formula':'木質冷調→花香暖調→海洋調，噴灑香水霧氣作為轉場','v-neg':'拒絕卡通風格、拒絕僵硬肢體' }},
+  { icon:'🚗', name:'汽車廣告', desc:'奢華品牌商業片',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'超豪華電影級商業廣告、超寫實、頂級時尚廣告','v-genre':'超豪華商業廣告','v-mood':'黃金時刻沙漠光影、光澤反射、感性氛圍、豐富黑色與金色調','v-formula':'標誌特寫→人物登場→駕駛序列→快剪高潮→收尾英雄構圖','v-music':'頂級電影級配樂、低沉貝斯、現代奢華電子搖滾','v-neg':'拒絕廉價商業感、拒絕不切實際物理效果、拒絕卡通風格、拒絕錯誤標誌' }},
+  { icon:'🥋', name:'喜劇格鬥', desc:'浮誇打鬥/特效',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影級、超寫實','v-genre':'喜劇格鬥動作','v-mood':'超現實主義、浮誇打鬥','v-formula':'攻擊→慢動作衝擊→反擊→慢動作→高潮收尾','v-neg':'拒絕低品質燈光、拒絕不切實際物理效果' }},
+  { icon:'🎋', name:'一鏡到底武俠', desc:'場景穿越/無剪輯',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'高幀率、4K超清','v-genre':'一鏡到底武俠大片','v-mood':'當代武俠電影亮調、清透水墨青黛+鎏金高光、高對比電影感','v-formula':'起勢掠驛→格鬥→追逐→收勢定格','v-neg':'拒絕卡通風格、拒絕低品質燈光、拒絕僵硬肢體' }},
+  { icon:'🚁', name:'FPV無人機', desc:'第一人稱俯衝',
+    data:{ 'v-model':'Kling AI neo banana pro','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影般第一人稱視角、充足自然光線、鮮豔飽和色彩','v-genre':'FPV無人機第一人稱穿越','v-mood':'動感十足、魚眼鏡頭效果','v-formula':'高空穿雲→貼地橫滾→超低空急飛→拉起→收尾','v-neg':'拒絕不切實際物理效果、拒絕低品質燈光' }},
+  { icon:'✨', name:'霧氣換裝轉場', desc:'造型變換/時尚特效',
+    data:{ 'v-model':'Higgsfield AI，影片模型：Seedance 2.0','v-dur':'15秒','v-ratio':'9:16 直版','v-quality':'電影級超高清、頂級時尚質感','v-genre':'時尚換裝轉場特效','v-mood':'夢幻飄逸、高飽和色彩對比、每段切換有強烈視覺衝擊','v-char':'參考上傳圖片角色，服裝與髮型隨場景調整，臉部保持一致','v-formula':'造型A噴霧→霧氣模糊畫面→造型B登場→再噴霧→造型C登場','v-music':'節奏強烈的電子流行音樂、每次換裝卡節拍高潮','v-sfx':'噴霧嘶嘶聲、霧氣擴散環繞音效、能量爆發聲','v-neg':'拒絕卡通風格、拒絕僵硬肢體、拒絕低品質燈光' }},
+  { icon:'🏮', name:'民國懷舊浪漫', desc:'旗袍/燈籠/霧氣詩意',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影級、膠片顆粒質感、細膩情緒光影','v-genre':'民國懷舊詩意愛情短片','v-mood':'琥珀暖調＋燭光紅影、霧氣瀰漫、如夢似幻的憂鬱美感、底片顆粒感強','v-char':'參考上傳圖片角色，旗袍造型，髮型精緻盤起，紅唇淡妝，眼神含情帶憂','v-formula':'燭光近景→緩慢轉身→推窗望外→霧中凝視→消散於光影','v-music':'古典鋼琴＋低吟弦樂、節奏緩慢如嘆息、帶有時代感的滄桑旋律','v-sfx':'雨聲滴落、燭火搖曳、遠處留聲機音樂、木地板輕踩聲','v-neg':'拒絕卡通風格、拒絕僵硬肢體、拒絕低品質燈光、拒絕現代元素' }},
+  { icon:'🎭', name:'京劇史詩大戲', desc:'戲曲/命運/悲劇張力',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影級、大師之作、8K超高解析度、史詩質感','v-genre':'京劇美學史詩劇情片','v-mood':'濃烈朱紅＋墨黑金邊、高反差戲劇燈光、命運感與悲劇張力、舞台與現實交疊','v-char':'參考上傳圖片角色，京劇妝容（水粉底、勾眼線、朱紅唇），戲服繁複刺繡，頭面珠翠','v-formula':'出場亮相→身段轉折→情緒爆發→慢動作靜止→轉場收幕','v-music':'京胡與打擊樂交織、鑼鼓點卡節拍、情緒至高點爆發交響','v-sfx':'鑼鼓切入、水袖破空聲、舞台木地板回響、全場寂靜的喘息','v-neg':'拒絕卡通風格、拒絕低品質燈光、拒絕現代元素、拒絕僵硬肢體' }},
+  { icon:'🥋', name:'無厘頭喜劇英雄', desc:'爆笑誇張/市井功夫',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影級、鮮豔飽和色彩、高反差喜劇感','v-genre':'無厘頭喜劇動作短片','v-mood':'混亂歡樂＋誇張市井氣息、慢動作英雄時刻與爆笑反差交替、鮮豔飽和色調','v-char':'參考上傳圖片角色，市井小人物外觀，服裝略顯破舊但精神飽滿，表情極度誇張豐富','v-formula':'落魄登場→意外爆發神技→浮誇慢動作英雄姿→搞笑收場反差','v-music':'喜感銅管樂＋突然爆發的史詩交響、滑稽音效穿插英雄配樂、節拍卡在誇張動作瞬間','v-sfx':'誇張打擊音效、慢動作時風聲拉長、人群鬨堂大笑、骨頭喀啦聲','v-voice':'主角自言自語碎念、突然正經的豪言壯語、搭檔尖叫聲','v-neg':'拒絕低品質燈光、拒絕不切實際物理效果、拒絕悶場靜止鏡頭' }},
+  { icon:'🍃', name:'東西文化衝突詩意', desc:'內斂情感/人性張力',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'電影級、細膩情緒光影、大師之作','v-genre':'文藝劇情詩意短片','v-mood':'剋制內斂的情感張力、自然光源、東西方文化衝突下的人性掙扎、畫面留白充足','v-char':'參考上傳圖片角色，神情複雜深邃，眼神藏著千言萬語，肢體語言克制而有力','v-formula':'靜默對視→細微動作洩露情緒→張力頂點沉默→緩慢轉身離開','v-music':'極簡鋼琴或大提琴獨奏、長時間靜默留白、情緒在無聲處最強','v-sfx':'風吹草動的環境音、腳步聲、遠處水聲、紙張翻動聲','v-neg':'拒絕過度煽情、拒絕卡通風格、拒絕僵硬肢體、拒絕低品質燈光' }},
+  { icon:'💥', name:'爆炸奇觀動作巨製', desc:'爆破/特效/鋼鐵機械',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'好萊塢頂級商業大片、超高解析度、極致特效細節','v-genre':'超級商業動作奇觀大片','v-mood':'超飽和暖色＋金屬冷光交替、鏡頭光暈炫光特效、大規模爆炸與機械奇觀、超快節奏剪輯','v-char':'參考上傳圖片角色，站在爆炸火焰前方緩緩轉身，背景衝擊波擴散','v-formula':'靜止蓄力→360°英雄環繞→爆炸衝擊波→慢動作飛濺→快剪高潮→收尾仰拍英雄姿','v-music':'重金屬搖滾＋管弦樂爆發、超強烈低音炮、節拍完全卡在每一次爆炸','v-sfx':'鋼鐵碰撞聲、爆炸震耳轟鳴、玻璃碎裂、衝擊波空氣震動、金屬扭曲聲','v-neg':'拒絕卡通風格、拒絕不切實際物理效果、拒絕低品質燈光、拒絕靜止無動感鏡頭' }},
+  { icon:'⏳', name:'時空懸念智識奇觀', desc:'時間逆轉/夢境/宏大敘事',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'IMAX電影級、極致細節、高對比冷調','v-genre':'燒腦科幻懸念奇觀短片','v-mood':'冷峻鋼藍灰色調、工業極簡美感、時間錯亂的迷離感、壓迫性的宏大空間尺度','v-char':'參考上傳圖片角色，表情冷靜克制，眼神專注而神秘，置身超大尺度幾何空間中','v-formula':'正向時間畫面→同一場景時間逆轉→兩條時間線交叉→物理不可能的奇觀定格','v-music':'低頻震盪音牆、時鐘嘀嗒聲節拍、突然爆發的管風琴、反向播放旋律','v-sfx':'低頻共鳴音效、空間扭曲聲、玻璃破裂倒放、時間暫停的靜默','v-neg':'拒絕卡通風格、拒絕低品質燈光、拒絕跳躍不連貫的物理效果' }},
+  { icon:'🌊', name:'史詩奇觀科幻浪漫', desc:'外星/深海/末世壯麗',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'好萊塢頂級視覺奇觀、超高解析度、突破性特效質感','v-genre':'史詩科幻奇觀浪漫大片','v-mood':'壯麗藍綠發光色調＋深邃星空背景、超大尺度自然奇觀、人物渺小而情感龐大、生物發光特效','v-char':'參考上傳圖片角色，置身外星叢林或深海環境，周圍有發光生物粒子環繞飄浮','v-formula':'壯闊大景→人物特寫情緒→環境奇觀互動→慢動作壯麗高潮→拉遠收尾宇宙尺度','v-music':'宏大管弦史詩配樂、人聲吟唱、壯麗旋律爬升至最高點','v-sfx':'深海水流聲、發光生物嗡鳴、環境共鳴音、遠處爆炸低頻震動','v-neg':'拒絕廉價特效感、拒絕卡通風格、拒絕低品質燈光、拒絕不切實際物理效果' }},
+  { icon:'🌆', name:'都市夜景輕奢廣告', desc:'品牌/生活方式影片',
+    data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'超豪華電影級商業廣告、超寫實、頂級時尚廣告質感','v-genre':'輕奢生活方式品牌廣告','v-mood':'黃金時刻暖光＋城市霓虹冷色對比、光澤反射、感性氛圍','v-char':'參考上傳圖片角色，長波浪髮，身著高級深色服裝，氣質自信優雅','v-formula':'品牌標誌特寫→人物登場→都市場景移動→快剪高潮→收尾英雄構圖','v-music':'現代輕奢電子樂＋低沉貝斯、情緒遞進至收尾','v-sfx':'城市環境音、高跟鞋步伐聲、玻璃門推開聲','v-neg':'拒絕廉價商業感、拒絕卡通風格、拒絕模糊反射、拒絕錯誤標誌' }},
+];
+
+function renderTemplates() {
+  const ig = document.getElementById('img-templates');
+  const vg = document.getElementById('vid-templates');
+  IMG_TEMPLATES.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'template-card';
+    el.innerHTML = `<div class="t-icon">${t.icon}</div><div><div class="t-name">${t.name}</div><div class="t-desc">${t.desc}</div></div>`;
+    el.onclick = (e) => applyTemplate(e, t.data, 'img');
+    ig.appendChild(el);
+  });
+  VID_TEMPLATES.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'template-card';
+    el.innerHTML = `<div class="t-icon">${t.icon}</div><div><div class="t-name">${t.name}</div><div class="t-desc">${t.desc}</div></div>`;
+    el.onclick = (e) => applyTemplate(e, t.data, 'vid');
+    vg.appendChild(el);
+  });
+}
+
+function applyTemplate(e, data, type) {
+  Object.entries(data).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+  document.querySelectorAll(`#panel-${type} .template-card`).forEach(c => c.classList.remove('active'));
+  e.currentTarget.classList.add('active');
+}
+
+// ── Shot blocks ──
+let shotCount = 1;
+function addShot() {
+  shotCount++;
+  const c = document.getElementById('shots-container');
+  const d = document.createElement('div');
+  d.className = 'shot-block';
+  d.innerHTML = `<div class="shot-head"><span class="shot-num">第 ${shotCount} 段</span><button class="remove-btn" onclick="removeShot(this)">移除</button></div>
+  <div class="fields">
+    <div class="field"><div class="field-label">時間段</div><input class="s-time" placeholder="00:00–00:03" /></div>
+    <div class="field"><div class="field-label">景別</div>
+      <select class="s-shot">
+        <option value="特寫 (CU)">特寫 CU</option><option value="近景 (MCU)">近景 MCU</option>
+        <option value="中景 (MS)">中景 MS</option><option value="中全景 (MFS)">中全景 MFS</option>
+        <option value="全景 (WS)">全景 WS</option><option value="遠景 (LS)">遠景 LS</option>
+      </select>
+    </div>
+    <div class="field"><div class="field-label">鏡頭運動</div>
+      <select class="s-move">
+        <option value="固定 (Static)">固定</option><option value="推進 (Push In)">推進</option>
+        <option value="拉遠 (Dolly Out)">拉遠</option><option value="環繞 180°">環繞 180°</option>
+        <option value="跟拍 (Tracking)">跟拍</option><option value="快速跟搖 (Pan)">快速跟搖</option>
+        <option value="俯視跟拍 (High Angle)">俯視跟拍</option><option value="廣角跟隨 (Wide Tracking)">廣角跟隨</option>
+        <option value="低角度背跟→環繞180°→仰拍→推進穿洞">背跟→環繞→穿洞</option>
+        <option value="FPV高空俯衝急推">FPV俯衝急推</option><option value="FPV貼地橫滾穿越">FPV橫滾穿越</option>
+        <option value="手持晃拍繞前">手持晃拍繞前</option>
+      </select>
+    </div>
+    <div class="field"><div class="field-label">動作描述</div><input class="s-action" placeholder="角色動作" /></div>
+    <div class="field"><div class="field-label">表情 / 台詞</div><input class="s-expr" placeholder="表情或台詞" /></div>
+    <div class="field"><div class="field-label">VFX 特效</div><input class="s-vfx" placeholder="特效描述" /></div>
+    <div class="field"><div class="field-label">音效節點</div><input class="s-sfx" placeholder="此段音效" /></div>
+  </div>`;
+  c.appendChild(d);
+  d.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+function removeShot(btn) {
+  if (document.querySelectorAll('.shot-block').length > 1) btn.closest('.shot-block').remove();
+}
+
+// ── Collect data ──
+function collectImg() {
+  return {
+    res: v('i-res'), quality: v('i-quality'),
+    style: v('i-style'), mood: v('i-mood'), ref: v('i-ref'),
+    look: v('i-look'), outfit: v('i-outfit'), expr: v('i-expr'), pose: v('i-pose'),
+    loc: v('i-loc'), time: v('i-time'), env: v('i-env'), deco: v('i-deco'),
+    color: v('i-color'), light: v('i-light'), tone: v('i-tone'),
+    ratio: v('i-ratio'), cam: v('i-cam'), lens: v('i-lens'), text: v('i-text'),
+    neg: v('i-neg')
+  };
+}
+function collectVid() {
+  const shots = [];
+  document.querySelectorAll('.shot-block').forEach(b => {
+    shots.push({
+      time: b.querySelector('.s-time').value,
+      shot: b.querySelector('.s-shot').value,
+      move: b.querySelector('.s-move').value,
+      action: b.querySelector('.s-action').value,
+      expr: b.querySelector('.s-expr').value,
+      vfx: b.querySelector('.s-vfx').value,
+      sfx: b.querySelector('.s-sfx').value,
+    });
+  });
+  return {
+    model: v('v-model'), dur: v('v-dur'), ratio: v('v-ratio'), quality: v('v-quality'),
+    genre: v('v-genre'), mood: v('v-mood'), char: v('v-char'), formula: v('v-formula'),
+    shots,
+    music: v('v-music'), sfx: v('v-sfx'), voice: v('v-voice'),
+    neg: v('v-neg')
+  };
+}
+
+// ── Generate structured ──
+function genImg() {
+  const d = collectImg();
+  const lines = [];
+  const photos = Object.values(uploadedImages.img);
+  if (photos.length) {
+    const names = photos.map((p,i) => `參考圖${i+1}：${p.name}`).join('、');
+    lines.push(`【臉部/外觀參考照片】已上傳 ${photos.length} 張（${names}）\n  ↳ 請在 AI 生圖平台同步上傳對應照片作為臉模參考`);
+  }
+  const q = [d.res, d.quality].filter(Boolean).join('，');
+  if (q) lines.push(q);
+  const style = [d.style, d.mood, d.ref].filter(Boolean).join('，');
+  if (style) lines.push(style);
+  const subj = [d.look, d.outfit, d.expr, d.pose].filter(Boolean).join('，');
+  if (subj) lines.push(subj);
+  const scene = [d.loc, d.time, d.env].filter(Boolean).join('，');
+  if (scene) lines.push(scene);
+  if (d.deco) lines.push(`版面裝飾：${d.deco}`);
+  const light = [d.color, d.light, d.tone].filter(Boolean).join('，');
+  if (light) lines.push(light);
+  const comp = [d.ratio, d.cam, d.lens].filter(Boolean).join('，');
+  if (comp) lines.push(comp);
+  if (d.text) lines.push(`版面文字：${d.text}`);
+  if (d.neg) lines.push(`\n負面提示詞：${d.neg}`);
+  const result = lines.length ? lines.join('。\n') : '（請至少填入一個欄位）';
+  document.getElementById('out-img-text').textContent = result;
+  document.getElementById('out-img').classList.add('show');
+  switchOutTab('img','raw');
+  document.getElementById('out-img').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function genVid() {
+  const d = collectVid();
+  const lines = [];
+  const photos = Object.values(uploadedImages.vid);
+  if (photos.length) {
+    lines.push(`【臉部/外觀參考照片】已上傳 ${photos.length} 張（${photos.map((p,i)=>`參考圖${i+1}：${p.name}`).join('、')}）\n  ↳ 請在 AI 生影平台同步上傳對應照片作為臉模參考`);
+  }
+  lines.push(`使用工具：${d.model}`);
+  lines.push(`片長：${d.dur}　比例：${d.ratio}　畫質：${d.quality || '電影級、超寫實'}`);
+  if (d.genre || d.mood) lines.push(`風格基調：${[d.genre, d.mood].filter(Boolean).join('，')}`);
+  if (d.char) lines.push(`主角：${d.char}`);
+  if (d.formula) lines.push(`動作公式：${d.formula}`);
+  lines.push('');
+  lines.push('【時間軸分鏡】');
+  d.shots.forEach(s => {
+    const time = s.time || '—';
+    let line = `${time}　${s.shot}　${s.move}`;
+    if (s.action) line += `\n　動作：${s.action}`;
+    if (s.expr) line += `\n　表情/台詞：${s.expr}`;
+    if (s.vfx) line += `\n　VFX：${s.vfx}`;
+    if (s.sfx) line += `\n　音效：${s.sfx}`;
+    lines.push(line);
+  });
+  lines.push('');
+  const audio = [d.music && `配樂：${d.music}`, d.sfx && `音效：${d.sfx}`, d.voice && `人聲：${d.voice}`].filter(Boolean);
+  if (audio.length) lines.push('【音效設計】\n' + audio.join('\n'));
+  if (d.neg) lines.push(`\n【負面提示詞】\n${d.neg}`);
+  const result = lines.join('\n');
+  document.getElementById('out-vid-text').textContent = result;
+  document.getElementById('out-vid').classList.add('show');
+  switchOutTab('vid','raw');
+  document.getElementById('out-vid').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+
+async function aiPolishImg() {
+  const d = collectImg();
+  const btn = document.getElementById('ai-img-btn');
+  btn.disabled = true;
+  const outBox = document.getElementById('out-img');
+  const narEl = document.getElementById('out-img-narrative');
+  outBox.classList.add('show');
+  narEl.innerHTML = '<div class="loading-row"><div class="spinner"></div>AI 敘事潤色中，約 10-20 秒…</div>';
+  switchOutTab('img','narrative');
+
+  const sysPrompt = `你是頂尖的 AI 圖像提示詞工程師，專精於中文敘事式提示詞。
+把用戶提供的結構化圖像資料，轉換成一份流暢、富有畫面感的敘事提示詞。
+格式要求：
+1. 不要用條列式，要用自然段落敘述
+2. 分為 3-4 段：第一段描述品質與整體風格；第二段描述主體（人物/物件）；第三段描述場景與光影；最後一段如有版面文字或負面提示詞則列出
+3. 每段之間空行分隔
+4. 語氣要有電影感和畫面臨場感
+5. 只輸出提示詞本身，不要任何說明或前言`;
+
+  const userMsg = `請將以下圖像資料轉換成敘事提示詞：
+解析度：${d.res} / 渲染品質：${d.quality}
+美學類型：${d.style} / 整體氛圍：${d.mood} / 參考風格：${d.ref}
+外觀特徵：${d.look} / 服裝配件：${d.outfit} / 表情神態：${d.expr} / 動作姿態：${d.pose}
+地點：${d.loc} / 時間天氣：${d.time} / 環境細節：${d.env} / 周邊裝飾：${d.deco}
+主色調：${d.color} / 光源方向：${d.light} / 色彩情緒：${d.tone}
+畫面比例：${d.ratio} / 鏡頭角度：${d.cam} / 景深焦段：${d.lens} / 版面文字：${d.text}
+負面提示詞：${d.neg}`;
+
+  try {
+    const images = Object.values(uploadedImages.img);
+    const text = await callAI(sysPrompt, userMsg, images);
+    narEl.textContent = text;
+  } catch(e) {
+    narEl.textContent = e.message.includes('API Key') ? '請先至右上角 ⚙ 設定 API Key' : '錯誤：' + e.message;
+  }
+  btn.disabled = false;
+  outBox.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+async function aiPolishVid() {
+  const d = collectVid();
+  const btn = document.getElementById('ai-vid-btn');
+  btn.disabled = true;
+  const outBox = document.getElementById('out-vid');
+  const narEl = document.getElementById('out-vid-narrative');
+  outBox.classList.add('show');
+  narEl.innerHTML = '<div class="loading-row"><div class="spinner"></div>AI 敘事潤色中，約 10-20 秒…</div>';
+  switchOutTab('vid','narrative');
+
+  const shotsText = d.shots.map((s,i) =>
+    `第${i+1}段 [${s.time||'—'}]：景別=${s.shot}，運動=${s.move}，動作=${s.action||'—'}，表情/台詞=${s.expr||'—'}，VFX=${s.vfx||'—'}，音效=${s.sfx||'—'}`
+  ).join('\n');
+
+  const sysPrompt = `你是頂尖的 AI 影片提示詞工程師，專精中文敘事式影片提示詞。
+把結構化分鏡資料轉換成流暢、有電影畫面感的敘事提示詞。
+格式要求：
+1. 開頭一段：工具聲明、片長比例、整體風格基調
+2. 中間每個分鏡段落獨立成一段，用【時間段】開頭，用敘事語氣描述鏡頭、動作、特效，要有臨場感
+3. 結尾一段：音效設計說明
+4. 最後列出負面提示詞（如有）
+5. 自然段落，不要純條列；只輸出提示詞，不要任何說明`;
+
+  const userMsg = `請將以下影片分鏡資料轉換成敘事提示詞：
+工具：${d.model} / 片長：${d.dur} / 比例：${d.ratio} / 畫質：${d.quality}
+影片類型：${d.genre} / 色調氛圍：${d.mood}
+主角：${d.char} / 動作公式：${d.formula}
+
+分鏡資料：
+${shotsText}
+
+配樂：${d.music||'—'} / 音效：${d.sfx||'—'} / 人聲台詞：${d.voice||'—'}
+負面提示詞：${d.neg||'—'}`;
+
+  try {
+    const images = Object.values(uploadedImages.vid);
+    const text = await callAI(sysPrompt, userMsg, images);
+    narEl.textContent = text;
+  } catch(e) {
+    narEl.textContent = e.message.includes('API Key') ? '請先至右上角 ⚙ 設定 API Key' : '錯誤：' + e.message;
+  }
+  btn.disabled = false;
+  outBox.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Copy ──
+function copyActive(panel) {
+  const rawPane = document.getElementById(panel+'-raw-pane');
+  const narPane = document.getElementById(panel+'-narrative-pane');
+  const isNar = narPane.classList.contains('active');
+  const id = isNar ? `out-${panel}-narrative` : `out-${panel}-text`;
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector(`#out-${panel} .copy-btn`);
+    const orig = btn.textContent;
+    btn.textContent = '已複製 ✓';
+    btn.style.color = 'var(--success)';
+    btn.style.borderColor = 'var(--success)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color=''; btn.style.borderColor=''; }, 2000);
+  });
+}
+
+renderTemplates();
+updateKeyStatus();
+</script>
+</body>
+</html>
