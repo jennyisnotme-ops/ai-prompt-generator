@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com https://api.openai.com; img-src 'self' data: blob:; object-src 'none';">
 <title>AI 提示詞生成器</title>
 <style>
 :root {
@@ -810,20 +811,29 @@ const uploadedImages = { img: {}, vid: {} };
 function handleUpload(input, panel, slot) {
   const file = input.files[0];
   if (!file) return;
+  // 縮圖用 objectURL，不把 base64 暴露在 DOM
+  const objectUrl = URL.createObjectURL(file);
+  const thumb = document.getElementById(`${panel}-thumb-${slot}`);
+  if (thumb._objectUrl) URL.revokeObjectURL(thumb._objectUrl);
+  thumb._objectUrl = objectUrl;
+  thumb.src = objectUrl;
+  // base64 只存在 JS 記憶體，供 API call 使用
   const reader = new FileReader();
   reader.onload = (e) => {
     uploadedImages[panel][slot] = { base64: e.target.result, name: file.name, type: file.type };
-    document.getElementById(`${panel}-thumb-${slot}`).src = e.target.result;
-    document.getElementById(`${panel}-fn-${slot}`).textContent = file.name;
-    document.getElementById(`${panel}-ph-${slot}`).style.display = 'none';
-    document.getElementById(`${panel}-pv-${slot}`).style.display = 'flex';
-    document.getElementById(`${panel}-upload-${slot}`).classList.add('has-file');
   };
   reader.readAsDataURL(file);
+  document.getElementById(`${panel}-fn-${slot}`).textContent = file.name;
+  document.getElementById(`${panel}-ph-${slot}`).style.display = 'none';
+  document.getElementById(`${panel}-pv-${slot}`).style.display = 'flex';
+  document.getElementById(`${panel}-upload-${slot}`).classList.add('has-file');
 }
 
 function clearUpload(e, panel, slot) {
   e.stopPropagation();
+  const thumb = document.getElementById(`${panel}-thumb-${slot}`);
+  if (thumb._objectUrl) { URL.revokeObjectURL(thumb._objectUrl); thumb._objectUrl = null; }
+  thumb.src = '';
   delete uploadedImages[panel][slot];
   document.getElementById(`${panel}-file-${slot}`).value = '';
   document.getElementById(`${panel}-ph-${slot}`).style.display = 'flex';
@@ -868,9 +878,11 @@ function switchOutTab(panel, type) {
 function v(id) { return (document.getElementById(id)||{}).value||''; }
 function saveKey(provider) {
   const id = provider==='gpt' ? 'api-key-gpt' : 'api-key';
-  const val = document.getElementById(id).value.trim();
+  const el = document.getElementById(id);
+  const val = el.value.trim();
   if (!val) return;
   sessionStorage.setItem('key_'+provider, val);
+  el.value = '';
   document.getElementById(provider===('gpt')?'gpt-saved':'claude-saved').classList.add('show');
   updateKeyStatus();
 }
@@ -980,23 +992,31 @@ const VID_TEMPLATES = [
     data:{ 'v-model':'Seedance 2.0','v-dur':'15秒','v-ratio':'16:9 橫版','v-quality':'超豪華電影級商業廣告、超寫實、頂級時尚廣告質感','v-genre':'輕奢生活方式品牌廣告','v-mood':'黃金時刻暖光＋城市霓虹冷色對比、光澤反射、感性氛圍','v-char':'參考上傳圖片角色，長波浪髮，身著高級深色服裝，氣質自信優雅','v-formula':'品牌標誌特寫→人物登場→都市場景移動→快剪高潮→收尾英雄構圖','v-music':'現代輕奢電子樂＋低沉貝斯、情緒遞進至收尾','v-sfx':'城市環境音、高跟鞋步伐聲、玻璃門推開聲','v-neg':'拒絕廉價商業感、拒絕卡通風格、拒絕模糊反射、拒絕錯誤標誌' }},
 ];
 
+function makeTemplateCard(t, panel) {
+  const el = document.createElement('div');
+  el.className = 'template-card';
+  const icon = document.createElement('div');
+  icon.className = 't-icon';
+  icon.textContent = t.icon;
+  const info = document.createElement('div');
+  const name = document.createElement('div');
+  name.className = 't-name';
+  name.textContent = t.name;
+  const desc = document.createElement('div');
+  desc.className = 't-desc';
+  desc.textContent = t.desc;
+  info.appendChild(name);
+  info.appendChild(desc);
+  el.appendChild(icon);
+  el.appendChild(info);
+  el.onclick = (e) => applyTemplate(e, t.data, panel);
+  return el;
+}
 function renderTemplates() {
   const ig = document.getElementById('img-templates');
   const vg = document.getElementById('vid-templates');
-  IMG_TEMPLATES.forEach(t => {
-    const el = document.createElement('div');
-    el.className = 'template-card';
-    el.innerHTML = `<div class="t-icon">${t.icon}</div><div><div class="t-name">${t.name}</div><div class="t-desc">${t.desc}</div></div>`;
-    el.onclick = (e) => applyTemplate(e, t.data, 'img');
-    ig.appendChild(el);
-  });
-  VID_TEMPLATES.forEach(t => {
-    const el = document.createElement('div');
-    el.className = 'template-card';
-    el.innerHTML = `<div class="t-icon">${t.icon}</div><div><div class="t-name">${t.name}</div><div class="t-desc">${t.desc}</div></div>`;
-    el.onclick = (e) => applyTemplate(e, t.data, 'vid');
-    vg.appendChild(el);
-  });
+  IMG_TEMPLATES.forEach(t => ig.appendChild(makeTemplateCard(t, 'img')));
+  VID_TEMPLATES.forEach(t => vg.appendChild(makeTemplateCard(t, 'vid')));
 }
 
 function applyTemplate(e, data, type) {
