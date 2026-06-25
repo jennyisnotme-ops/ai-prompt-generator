@@ -280,7 +280,7 @@ select option{background:var(--surface2)}
         <span class="section-icon">📸</span>
         <div>
           <div class="section-title">臉部 / 外觀參考照片</div>
-          <div class="section-desc">上傳後，生成提示詞會加入參考圖說明；使用「✦ AI 敘事潤色」時，圖片會直接送給 AI 作為視覺參考</div>
+          <div class="section-desc">使用「✦ AI 敘事潤色」時，圖片會直接送給 AI 作為視覺參考｜圖片僅供 ✦ AI 敘事潤色 使用，結構版不適用</div>
         </div>
       </div>
       <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
@@ -562,7 +562,7 @@ select option{background:var(--surface2)}
         <span class="section-icon">📸</span>
         <div>
           <div class="section-title">臉部 / 外觀參考照片</div>
-          <div class="section-desc">上傳後，生成提示詞會加入參考圖說明；使用「✦ AI 敘事潤色」時，圖片會直接送給 AI 作為視覺參考</div>
+          <div class="section-desc">使用「✦ AI 敘事潤色」時，圖片會直接送給 AI 作為視覺參考｜圖片僅供 ✦ AI 敘事潤色 使用，結構版不適用</div>
         </div>
       </div>
       <div class="fields" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
@@ -1109,7 +1109,7 @@ function genImg() {
   const photos = Object.values(uploadedImages.img);
   if (photos.length) {
     const names = photos.map((p,i) => `參考圖${i+1}：${p.name}`).join('、');
-    lines.push(`【臉部/外觀參考照片】已上傳 ${photos.length} 張（${names}）\n  ↳ 請在 AI 生圖平台同步上傳對應照片作為臉模參考`);
+    lines.push(`主角臉模請參考上傳圖片。\n\n⚠️ 操作提醒：請將以下照片同步上傳至 AI 生圖平台\n${names}`);
   }
   const q = [d.res, d.quality].filter(Boolean).join('，');
   if (q) lines.push(q);
@@ -1138,7 +1138,8 @@ function genVid() {
   const lines = [];
   const photos = Object.values(uploadedImages.vid);
   if (photos.length) {
-    lines.push(`【臉部/外觀參考照片】已上傳 ${photos.length} 張（${photos.map((p,i)=>`參考圖${i+1}：${p.name}`).join('、')}）\n  ↳ 請在 AI 生影平台同步上傳對應照片作為臉模參考`);
+    const names = photos.map((p,i) => `參考圖${i+1}：${p.name}`).join('、');
+    lines.push(`主角臉模請參考上傳圖片。\n\n⚠️ 操作提醒：請將以下照片同步上傳至 AI 生影平台\n${names}`);
   }
   lines.push(`使用工具：${d.model}`);
   lines.push(`片長：${d.dur}　比例：${d.ratio}　畫質：${d.quality || '電影級、超寫實'}`);
